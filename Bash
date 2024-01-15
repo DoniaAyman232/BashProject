@@ -1,0 +1,462 @@
+#!/bin/bash
+# select delete update
+
+DBMS_DIR="dbms"
+# CURRENT_DB=""
+
+# Function to replace spaces with underscores in the database name
+input_checker() {
+    echo "$1" | tr ' ' '_'
+}
+
+# Global variables
+tableName=""
+filePath=""
+
+# Function to check if a string is a valid database name
+is_valid_db_name() {
+    db_name=$1
+
+    # Check if it's a reserved keyword
+    if [[ "$db_name" =~ ^(create|list|drop|connect|from|select|update|delete)$ ]]; then
+        echo "Warning: '$db_name' is a reserved keyword. Please choose a different name."
+        return 1
+    fi
+
+    # Check if it starts with a number
+    if [[ "$db_name" =~ ^[0-9] ]]; then
+        echo "Warning: Database name cannot start with a number."
+        return 1
+    fi
+
+    # Check for spaces
+    if [[ "$db_name" =~ \  ]]; then
+        echo "Warning: Spaces in the database name will be replaced with underscores."
+    fi
+
+    return 0
+}
+
+# Function to create a database
+create_database() {
+    read -p "Enter the name for the new database: " db_name
+    validDB_name=$(input_checker "$db_name")
+
+    if is_valid_db_name "$validDB_name"; then
+        if [ -d "$DBMS_DIR/$validDB_name" ]; then
+            echo "Warning: Database '$validDB_name' already exists."
+        else
+            mkdir "$DBMS_DIR/$validDB_name"
+            echo "Database '$validDB_name' was created successfully."
+        fi
+    else
+        echo "Warning: Invalid database name. Please try again."
+    fi
+}
+
+# Function to list only database directories
+list_databases() {
+    local dbms_dir="dbms"
+    echo "List of databases:"
+    for dir in "$dbms_dir"/*/; do
+        if [ -d "$dir" ]; then
+            echo "${dir#$dbms_dir}"
+        fi
+    done
+    
+}
+
+# Function to drop a database
+drop_database() {
+    while true; do
+        # Prompt the user for the name of the database to remove
+        read -p "Enter the name of the database you want to remove: " db_name
+
+        # Check if the input is empty
+        if [ -z "$db_name" ]; then
+            echo "Database name cannot be empty. Please enter a valid name."
+            read -p "Do you want to enter another name? (y/n): " answer
+            if [ "$answer" == "n" ]; then
+                break
+            else
+                continue
+            fi
+        fi
+
+        # Use an input_checker function to validate the database name
+        validDB_name=$(input_checker "$db_name")
+
+        # Check if the database directory exists
+        if [ -d "$DBMS_DIR/$validDB_name" ]; then
+            # Remove the database directory
+            rm -r "$DBMS_DIR/$validDB_name"
+            echo "Database '$validDB_name' removed successfully."
+        else
+            # Display a warning if the database directory is not found
+            echo "Warning: Database '$db_name' not found."
+        fi
+
+        read -p "Do you want to remove another database? (y/n): " answer
+        if [ "$answer" == "n" ]; then
+            break
+        fi
+    done
+}
+
+
+
+# Function to Disconnecting
+disconnecting() {
+    echo "Disconnecting from $validDB_name, Goodbye"
+    cd ../..
+    break
+}
+
+# Function to connect to a database and contain all the db features 
+connect_to_database() {
+    read -p "Enter the name of the database you want to connect to: " db_name
+    validDB_name=$(input_checker "$db_name")
+
+    if [ -d "$DBMS_DIR/$validDB_name" ]; then
+        cd "$DBMS_DIR/$validDB_name"
+        echo "Connected to database '$validDB_name'."
+        # here is the start of our dbms mean function as we are actually inside the database directory
+
+        # dbms mean menu
+        while true; do
+            echo -e "you are now inside $validDB_name database please select any number from 1 to 7 "
+            echo "1. Create Table"
+            echo "2. List All Tables"
+            echo "3. Drop Table"
+            echo "4. SELECT"
+            echo "5. INSERT"
+            echo "6. UPDATE"
+            echo "7. Disconnect from database"
+
+            read -p "Enter your choice 1-7: " dbms_mean_menu_choice
+            # dbms_mean_menu_case_statement
+            case $dbms_mean_menu_choice in
+                1) getValidTableName ;;
+                 2)  viewAllTables;;
+                  3) dropTable  ;;
+                #   4) SELECT from Tables funcation call ;;
+                  5) insert_data ;;
+                #  6) UPDATE Tables funcation call ;;
+                7) disconnecting ;;
+                *) echo "Invalid choice, Please enter a number between 1 and 7." ;;
+            esac
+        done
+
+        # end of our dbms function as we will disconnect from the database
+    else
+        echo "Warning: Database '$validDB_name' not found."
+    fi
+}
+#########################################################
+############# Function to create a table ##########
+getValidTableName() {
+    while true; do
+        read -p "Enter the name for the new table: " tableName
+
+        if [ -z "$tableName" ]; then
+            echo "Table name cannot be empty. Try again."
+            continue
+        fi
+
+        # Replace spaces with underscores
+        tableName="${tableName// /_}"
+
+        if [[ ! "$tableName" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
+            echo "Invalid table name. Try again."
+            continue
+        fi
+
+        filePath="./${tableName}"
+        metadataFile="./.${tableName}"
+
+        if [ -e "$filePath" ] || [ -e "$metadataFile" ]; then
+            echo "Table '$tableName' or metadata file already exists. Choose a different name. Try again."
+            continue
+        fi
+
+        while true; do
+            read -p "Enter the number of columns for the table: " numColumns
+
+            if [ -z "$numColumns" ]; then
+                echo "Number of columns cannot be empty. Please enter a positive integer. Try again."
+                continue
+            elif ! [[ "$numColumns" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Invalid number of columns. Please enter a positive integer. Try again."
+                continue
+            fi
+            break
+        done
+
+        touch "$metadataFile"
+
+        if [ "$numColumns" -gt 0 ]; then
+            touch "$filePath"
+            echo "Table '$tableName' created successfully at $filePath"
+            break
+        else
+            echo "Table cannot be created without columns. Please enter a positive number of columns."
+        fi
+    done
+
+    pkAsked=false
+    pkName=""
+
+    for ((i = 1; i <= numColumns; i++)); do
+        while true; do
+            read -p "Enter the name for column $i: " colName
+
+            if [ -z "$colName" ]; then
+                echo "Column name cannot be empty. Try again."
+                continue
+            elif [ "$colName" == "ID" ]; then
+                echo "ID is reserved. Please choose a different column name."
+                continue
+            elif ! [[ "$colName" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+                echo "Invalid column name. Please enter a valid name."
+                continue
+            fi
+            break
+        done
+
+        while true; do
+            read -p "Enter the data type for column $colName (int/string): " colType
+
+            if [ "$colType" != "int" ] && [ "$colType" != "string" ]; then
+                echo "Invalid data type. Please enter 'int' or 'string'."
+                continue
+            else
+                break
+            fi
+        done
+
+        if [ "$pkAsked" == false ]; then
+            while true; do
+                read -p "Do you want to set $colName as the pk? (y/n): " isPk
+
+                if [ "$isPk" == "y" ]; then
+                    pkName=$colName
+                    pkAsked=true
+                    break
+                elif [ "$isPk" == "n" ]; then
+                    break
+                else
+                    echo "Invalid input. Please enter 'y' or 'n'."
+                fi
+            done
+        fi
+
+        if [ "$pkName" == "$colName" ]; then
+            echo "$colName:$colType:pk" >> "$metadataFile"
+        else
+            echo "$colName:$colType" >> "$metadataFile"
+        fi
+    done
+
+    if [ -n "$pkName" ]; then
+        echo "Primary key is $pkName"
+    else
+        echo "No primary key defined."
+    fi
+
+    echo "Table Created!!"
+}
+
+
+#########################################################
+############# Function to insert data ##########
+insert_data() {
+    while true; do
+        read -p "Enter table name: " tableName
+
+        filePath="./${tableName}"
+        metadataFile="./.${tableName}"
+
+        if [[ -z "$tableName" || ! "$tableName" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]]; then
+            echo "Invalid table name. Table name must start with a letter and can only contain letters, numbers, and underscores. Try again."
+            continue
+        fi
+
+        if [ -e "$filePath" ]; then
+            echo "File found. Please insert data."
+
+            if [ -e "$metadataFile" ]; then
+                 
+                columns=()
+                pkColumn=""
+                pkType=""
+                while IFS=':' read -r columnName dataType rest; do
+                    columns+=("$columnName:$dataType")
+                    if [[ "$rest" == "pk" ]]; then
+                        pkColumn="$columnName"
+                        pkType="$dataType"
+                    fi
+                done < "$metadataFile"
+
+                if [ -n "$pkColumn" ]; then
+                    echo "Primary key column found: $pkColumn"
+                    
+                    while true; do
+                        read -p "Enter data for $pkColumn ($pkType): " idInput
+
+                        if [ "$pkType" == "int" ] && ! [[ "$idInput" =~ ^[0-9]+$ ]]; then
+                            echo "Invalid input. Enter a number for $pkColumn."
+                        elif [ "$pkType" == "string" ] && grep -q "^$idInput:" "$filePath"; then
+                            echo "Duplicate value. Enter a different $pkColumn."
+                        elif [ "$pkType" == "int" ] && grep -q "^$idInput:" "$filePath"; then
+                            echo "Duplicate value. Enter a different $pkColumn."
+                        elif [ -z "$idInput" ] || [[ "$idInput" =~ ^[[:space:]]+$ ]]; then
+                            echo "$pkColumn cannot be empty or contain only spaces. Enter a valid value."
+                        else
+                            break
+                        fi
+                    done
+
+                    echo -n "$idInput:" >> "$filePath"
+
+                    for columnInfo in "${columns[@]}"; do
+                        IFS=':' read -r columnName dataType <<< "$columnInfo"
+                        if [ "$columnName" != "$pkColumn" ]; then
+                            echo "Enter data for $columnName ($dataType):"
+
+                            read -r inputData
+
+                            while [[ -z "$inputData" || "$inputData" =~ ^[[:space:]]+$ ]]; do
+                                echo "$columnName cannot be empty or contain only spaces. Enter a valid value:"
+                                read -r inputData
+                            done
+
+                            if [ "$dataType" == "int" ]; then
+                                until [[ "$inputData" =~ ^[0-9]+$ ]]; do
+                                    echo "Invalid input. Enter a number for $columnName:"
+                                    read -r inputData
+                                done
+                            fi
+
+                            echo -n "$inputData:" >> "$filePath"
+                        fi
+                    done
+
+                    echo "" >> "$filePath"  # Add a newline after each row
+                    echo "Data inserted successfully into table '$tableName'."
+                    break  
+                else
+                    echo "Error: Primary key column not found in metadata for table '$tableName'."
+                    echo "Columns in metadata file: ${columns[@]}"
+                fi
+            else
+                echo "Metadata file not found for table '$tableName'."
+            fi
+        else
+            echo "No file found for table '$tableName'."
+            while true; do
+                read -p "Do you want to enter another table name? (y/n): " answer
+
+                if [ "$answer" == "y" ]; then
+                    break
+                elif [ "$answer" == "n" ]; then
+                    exit 0
+                else
+                    echo "Invalid input. Please try again."
+                fi
+            done
+        fi
+    done
+}
+
+
+#########################################################
+############# Function to list table ##########
+function viewAllTables {
+    echo "Tables in '$DBMS_DIR/$validDB_name':"
+
+    ls -1
+}
+#########################################################
+############# Function to drop table ##########
+
+function validateTableName {
+    local tableName="$1"
+
+    if [ -z "$tableName" ] || [[ ! "$tableName" =~ ^[a-zA-Z0-9_]+$ ]]; then
+        echo "Invalid table name. Please Try Again."
+        return 1
+    fi
+
+    return 0
+}
+
+function dropTable {
+    while true; do
+        read -p "Enter the name of the table you want to drop: " dropTableName
+
+        if ! validateTableName "$dropTableName"; then
+            continue
+        fi
+
+        dropFilePath="./${dropTableName}"
+        metadataFilePath="./.${dropTableName}"
+
+        if [ -e "$dropFilePath" ]; then
+            while true; do
+                read -p "Are you sure you want to drop table '$dropTableName'? (y/n): " dropConfirmation
+
+                case $dropConfirmation in
+                    [Yy]*)
+                        rm "$dropFilePath"
+                        echo "Table '$dropTableName' dropped successfully."
+
+                        if [ -e "$metadataFilePath" ]; then
+                            rm "$metadataFilePath"
+                            echo "Metadata file for '$dropTableName' dropped as well."
+                        else
+                            echo "Metadata file for '$dropTableName' not found."
+                        fi
+
+                        return
+                        ;;
+                    [Nn]*)
+                        echo "Table '$dropTableName' not dropped."
+                        return
+                        ;;
+                    *)
+                        echo "Invalid input. Please enter 'y' or 'n'."
+                        ;;
+                esac
+            done
+        else
+            echo "Table '$dropTableName' not found."
+        fi
+    done
+}
+##############################################
+
+# Check if DBMS directory exists, create it if not
+if [ ! -d "$DBMS_DIR" ]; then
+    mkdir "$DBMS_DIR"
+fi
+
+# Main menu
+while true; do
+    echo -e "\nDBMS Menu:"
+    echo "1. Create Database"
+    echo "2. List All Databases"
+    echo "3. Drop Database"
+    echo "4. Connect to Database"
+    echo "5. Exit"
+
+    read -p "Enter your choice 1-5: " choice
+
+    case $choice in
+        1) create_database ;;
+        2) list_databases ;;
+        3) drop_database ;;
+        4) connect_to_database ;;
+        5) echo "Exiting DBMS. Goodbye"; exit ;;
+        *) echo "Invalid choice, Please enter a number between 1 and 5." ;;
+    esac
+done
